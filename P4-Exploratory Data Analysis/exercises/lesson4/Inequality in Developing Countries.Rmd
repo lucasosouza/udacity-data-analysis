@@ -1,0 +1,47 @@
+---
+title: "Inequality in Developing Countries"
+author: "Lucas O. Souza"
+date: "13 de janeiro de 2016"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+df.data <-read.csv("data.csv")[-1]
+```
+
+I have calculated an inequality index, based on the income of the 10% richest divide by the income
+of the 10% poorest (using purchase parity power, PPP). This inequality index was plotted against homicide,suicide and life expectancy, to investigate the claim that higher inequality can lead to higher homicide rates, suicide rates and lower life expectancy.
+
+This claim is made in the book The Spirit Level: Why More Equal Societies Almost Always Do Better, by Kate Pickett and Richard Wilkinson, but only for countries that have achieved a certain level of development ("developed countries").
+
+On the contrary, in this sample, taken from data available at Gapminder, only "developing countries" were selected. The criteria of selection was not predetermined, rather, these were the countries which had available data for Richest 10%, Poorest 10%, Life Expectancy at Birth, Murder by 100,000 and Suicide by 100,00 at the year of 2005 (also the year with most available data). None of the 38 countries in the sample are considered "developed countries"
+
+```{r}
+ggplot(data=df.data, aes(x=inequality, y=Life_Expectancy)) +
+  geom_point() + geom_smooth(method="lm", se=FALSE)
+with(df.data, cor.test(inequality, Life_Expectancy))
+
+```
+
+The positive correlation between life expectancy at birth and inequality shows a different scenario than expected. The plot shows that higher inequalities are related to higher life expectancy (as always, correlation does not imply causation)
+
+```{r}
+ggplot(data=df.data, aes(x=inequality, y=Suicide)) +
+  geom_point() + geom_smooth(method="lm", se=FALSE)
+with(df.data, cor.test(inequality, Suicide))
+
+```
+
+For suicide, we also have a contradictory scenario. The number of suicide deatlhs is negatively correlated with the inequality index, meaning higher inequalities are related to less deaths by suicide.
+
+```{r}
+ggplot(data=df.data, aes(x=inequality, y=Homicide)) +
+  geom_point() + geom_smooth(method="lm", se=FALSE)
+with(df.data, cor.test(inequality, Homicide))
+
+```
+
+At last, in homicide, the results are consistend with the findings presented in the book. Homicide and inequality are positively correlated, meaning higher inequalities are related to more deaths by homicide. The correlation can be seen on the scatterplot.
+
+With the sparse data available (and a very naive and unverified analysis), I could not confirm that the same correlations identified by Kate Pickett for "developed countries"" can be extrapolated to "developing countries".

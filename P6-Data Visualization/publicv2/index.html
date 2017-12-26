@@ -1,0 +1,73 @@
+<html>
+  <head>
+    <title>Unemployment</title>
+    <script src="https://d3js.org/d3.v3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dimple/2.2.0/dimple.latest.min.js"></script>  
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular.min.js"></script>
+    <script src="app.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+  </head>
+
+  <body ng-app="chartApp">
+
+    <div class="container" ng-controller="mainCtrl">
+       <div class="row">
+        <div class="page-header">
+          <h1>Unemployment and GDP Analysis <small>using dimple.js</small></h1>
+        </div>
+      </div>
+
+      <div class="row">
+        <p>It is a common misconception that unemployment rate is directly related to the countries economic performance. If a crisis occur, then unemployment rate increases; on the other hand, if the country is sailing through tranquil waters, the unemployment rate decreases. There are plenty of studies that refute this conclusion, showing there is no significant correlation (and causation) between unemployment and economic performance.</p>
+
+       <p>In the visualization below, we can see the average Per Capita GDP and Unemployment Rate, side by side, for a sample of 27 countries, including developed and developing countries, from years 1981 to 2005.(data source:<a href="http://www.gapminder.com" target="_blank">Gapminder</a>)</p> 
+
+      </div>
+
+      <svg id="mainViz"></svg>
+
+      <div class="row">
+
+
+       <p>In 25 years, unemployment has increased from 6.7 to 8.9%, a 33% increase. If we extrapolate this trend, we can expect average unemployment to be around 11,8% in 2030, and close to 16% in 2055. If we consider the 95% of countries under the normal curve, we are looking at countries with unemployment as high as 38% in mid-century.</p>     
+
+      <p>If countries are getting richer, but unemployment keeps increasing, we need to consider alternative explanations. In less developed countries, unemployment is often a factor of inequality and lack of adequate social policies, leaving a large portion of the population skill-less and excluded from the job market. Likewise, on some of the well developed countries, unemployment has risen even in years of positive increase in per capita GDP. A possible interpretation, popular in the tech community, is the new arrangement of society due to breakthrough advancements in technology (think AI and robotics), requiring less employed people to generate the same amount of products and services.</p>
+
+      <p>In the visualization below, you can explore the relationship between Unemployment Rate and Per Capita GDP in different countries, age groups and genders.</p>
+
+      </div>
+
+      <hr>
+
+      <div class="form-group">
+        <label for="exampleInputEmail1">Select a Country</label>
+        <select class="form-control" ng-options="country for country in countries" ng-model="selectedCountry"></select>
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputEmail1">Select an Age Group</label>
+        <select class="form-control" ng-options="age for age in ages" ng-model="selectedAge"></select>
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputEmail1">Select a Gender</label>
+        <select class="form-control" ng-options="gender for gender in genders" ng-model="selectedGender"></select>
+      </div>
+                
+     <svg id="auxViz"></svg>
+
+    <div class="row" style="margin-bottom:50px;">
+
+        <h3>Final Note</h3>
+
+        <p>It is past time society looks at unemployment from a new perspective. Instead of a negative side effect from poor economical development, unemployment reflects an inevitable rearrangement of society. Social policies must be developed in order to address the unemployment issue with a forward thinking approach. The unemployed, young and old, can not be excluded from society, or worst, be forced to perform meaningless jobs that do not generate value on a personal or societal level. 
+
+        <p>In other words, if the cake just gets bigger and bigger, it is only a matter of finding a way to properly ensure everyone gets a fair piece of it.</p>
+     
+    </div>
+
+    </div>
+ 
+  </body>
+</html>
+

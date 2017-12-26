@@ -1,0 +1,58 @@
+<html>
+  <head>
+    <title>Unemployment</title>
+    <script src="https://d3js.org/d3.v3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dimple/2.2.0/dimple.latest.min.js"></script>  
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.9/angular.min.js"></script>
+    <script src="app.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+  </head>
+
+  <body ng-app="chartApp">
+
+    <div class="container" ng-controller="mainCtrl">
+
+      <div class="row">
+        <div class="page-header">
+          <h1>Unemployment and GDP Analysis <small>using dimple.js</small></h1>
+        </div>
+      </div>
+
+      <div class="row">
+        <p>It is a common misconception that unemployment rate is directly related to the countries economic performance. If a crisis occur, then unemployment rate increases; on the other hand, if the country is sailing through tranquil waters, the unemployment rate decreases. There is far enough evidence to refute this conclusion, showing that neither the correlation between unemployment and economic performance nor the causation are true. </p>
+
+        <p>In less developed countries, unemployment is often a factor of inequality and lack of adequate social policies, leaving a large portion of the population skill-less and excluded from the job market. Likewise, on some of the well developed countries, unemployment has been rising steadily even through years of positive increase in per capita GDP. A possible explanation for it is a new arrangement of the society due to the breakthrough advancements in technology, requiring less employed people to generate the same amount of products and services.</p>
+
+        <p>If that hypothesis is true, we have to look at unemployment from a new perspective. Instead of a negative side effect from poor economical development, unemployment reflects an inevitable rearrangement of society. Social policies must be developed in order to address the unemployment issue with a forward thinking approach. The unemployed, young and old, should not be excluded from society, or worst, be forced to perform meaningless jobs that do not generate value on a personal or societal level. 
+
+        <p>In other words, if the cake just gets bigger and bigger, it is only a matter of finding a way to properly ensure everyone gets a fair piece of it.</p>
+
+      <hr>
+
+        <p>In the visualization below, you can explore the relationship between Unemployment Rate and Per Capita GDP in different countries, age groups and genders. The data was downloaded from <a href="http://www.gapminder.com" target="_blank">Gapminder</a>.</p>
+
+
+      </div>
+
+      <hr>
+
+      <div class="form-group">
+        <label for="exampleInputEmail1">Select a Country</label>
+        <select class="form-control" ng-options="country for country in countries" ng-model="selectedCountry"></select>
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputEmail1">Select an Age Group</label>
+        <select class="form-control" ng-options="age for age in ages" ng-model="selectedAge"></select>
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputEmail1">Select a Gender</label>
+        <select class="form-control" ng-options="gender for gender in genders" ng-model="selectedGender"></select>
+      </div>
+                
+    </div>
+ 
+  </body>
+</html>
+

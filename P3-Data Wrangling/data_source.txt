@@ -1,0 +1,3 @@
+link to data: https://mapzen.com/data/metro-extracts
+reason: For this project I had initially chosen data from Brasilia, which is the political capital of Brazil and also my hometown. But an initial analysis showed very little information available for Brasilia (there were zero entries with address data).
+I've then switched to Rio de Janeiro, the second largest city in Brazil, known for its beautiful beaches and carnival celebrations. According to wikipedia, the municipality of Rio de Janeiro has an area of 1.2 million square kilometers, and 6.5 million inhabitants(12 million when you include metropolitan area)

@@ -1,0 +1,690 @@
+ANALYSIS OF LOAN DATA FROM PROSPER by LUCAS O. SOUZA
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+#plotting and wrangling
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(tidyr)
+library(gridExtra)
+
+#extra libraries, for the correlation analysis 
+library(GGally)
+library(scales)
+library(memisc)
+
+#linear regression
+library('bitops')
+library('RCurl')
+
+#others
+library(Hmisc)
+
+```
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+df <- read.csv('prosperLoanData.csv')
+```
+
+The dataset refer to loan data by Prosper between the years of X and Y. The dataset is huge - 113,937 observations with 81 variables. 
+
+My purpose on this analysis will be to try to predict ProsperScore or ProsperRating based on different variables in the dataset. For this purpose, I will select only loans originated after July 2009, as the variables dictionary indicates that Prosper Rating and Scores were assigned only for loans originated after that date (before that another variable was used, CreditGrade). I will also work only with loans Completed or Defaulted, so I can test for the performance of Score and Rating variables in evaluating the probability of a loan being defaulted.
+
+Finally, I will reduce the number of variables to become easier to process and analyse the data. I have selected around 15 variables from the dataset, by reading the description and considering the relevance to loan analysis, and also trying to avoid covariance between the variables (crude analysis at this point, just using the little domain knowledge I have). Furthermore, along the analysis we will look at each variable individually, then in pairs and finally through a multivariate analysis and select which ones will be most relevant in building a predictive model.
+
+
+```{r echo=FALSE, Trim_the_Data}
+#first look at the data
+str(df)
+
+#keep only projects originated after July 2009
+#convert to data
+head(df$LoanOriginationDate)
+df <- transform(df, LoanOriginationDate = as.Date(LoanOriginationDate, "%Y-%m-%d"))
+summary(df$LoanOriginationDate)
+describe(df$LoanOriginationDate)
+
+#filter date 
+df <- subset(df, LoanOriginationDate > '2009-08-01')
+
+#keep only projects Completed or Defaulted
+df <- subset(df, LoanStatus=='Completed' | LoanStatus=='Defaulted')
+
+#remove all entries that still have ProsperRating and ProsperScore not na
+describe(df$ProsperRating..Alpha.)
+df <- subset(df, ProsperRating..Alpha.!='')
+
+describe(df$ProsperScore)
+#I don't know what score 11 means. The dictionary says it goes from 1 to 10. I will remove them to be sure
+df <- subset(df, ProsperScore < 11)
+
+#The dataset size looks more reasonable now. I can work with 20,000 observations. I will first reduce the number of dimensions before proceeding with the analysis
+#keep only the variables selected
+
+df <- subset(df, select=c(#general info on the loan
+                          'LoanKey',
+                          'BorrowerRate',
+                          'LoanOriginalAmount',
+                          'Term',
+                          #info on the loan status and scores
+                          'LoanStatus',
+                          'ProsperRating..Alpha.',
+                          'ProsperScore',
+                          #variables that may be used to predict loan outcome
+                          'BorrowerState', 
+                          'CurrentDelinquencies',
+                          'DebtToIncomeRatio',
+                          'EmploymentStatus',
+                          'IncomeVerifiable',
+                          'InvestmentFromFriendsAmount',
+                          'Recommendations',
+                          'StatedMonthlyIncome'
+                          ))
+
+
+```
+
+With the trimmed dataset, I have 15 variables and 20,622 observations. That is a reasonable size dataset to be analysed. I will proceed with the univariate plots section and take a closer look at each relevant variable individually.
+
+
+# Univariate Plots
+
+```{r echo=FALSE, Univariate_Plots}
+head(df)
+str(df)
+
+```
+
+First we will look at the distribution for each variable. The continuous variables are best analysed with histograms, while for discrete variables with a few categories I can use geom_bars. I will start with scores and ratings.
+
+```{r}
+#before plotting scores, I will rearrange the order of prosper rating alpha, from the worst to best, to be equivalent to scores
+df$ProsperRating..Alpha. <- factor(df$ProsperRating..Alpha., levels = rev(levels(df$ProsperRating..Alpha.)))
+#still got the A and AA inverted
+df$ProsperRating..Alpha. <- factor(df$ProsperRating..Alpha.,levels = levels(df$ProsperRating..Alpha.)[c(1:5,7,6)])
+
+
+```
+
+```{r}
+
+#scores
+p1 <- ggplot(df, aes(x=ProsperScore)) + geom_histogram(binwidth = 1)
+p2 <- ggplot(df, aes(x=ProsperRating..Alpha.)) + geom_bar()
+grid.arrange(p1, p2)
+
+```
+
+There doesn't seem to be a strong correlation between scores and rating. Scores are right-skewed, peeking at about 8, while ratings peak at rate D. Since I am not sure about the relationship between these variables , I will test them separately when evaluating how well they performed in evaluating loan customers. Let's see the distribution per status:
+
+```{r}
+describe(df$LoanStatus)
+```
+
+Having filtered only Completed and Defaulted Status, we can see that 19,619 of the remaining observations, equivalent to 95% of the dataset, is marked as Completed, while 1,003 or 5% are Defaulted. That skewed distribution is expected since being Defaulted is essentially an anomaly in the process.
+
+Next, I will take a look at some of the general characteristics of the loan, such as value and interest rate
+
+```{r}
+
+p1 <- ggplot(df, aes(x=BorrowerRate)) + 
+  geom_histogram(bins=10) +
+  scale_x_continuous(breaks=seq(0,0.4,0.05))
+p2 <- ggplot(df, aes(x=LoanOriginalAmount)) + 
+  geom_histogram(bins=10) + 
+  scale_x_continuous(breaks=seq(0,30000,5000))
+p3 <- ggplot(df, aes(x=Term)) + 
+  geom_histogram() + 
+  scale_x_continuous(breaks=seq(10,60,2))
+grid.arrange(p1,p2,p3)
+
+```
+
+Most of the loans have a total value less than $10,000, peaking at around $5,000. The interest rate has a more flat distribution between 0.075 and 0.275, peaking at around 0.30. It will be more interesting to analyse these variables together. My guess is that lower the $5,000 peak is equivalent to the 0.30 peak on interest rate, since loans with lower amount tend to have a higher interest rate.
+
+Terms are only for 12 months, 36 months or 60 months, with great majority of loans with a 36 months term. There is probably little information we can extract from this variable
+
+Finally, let's look at the other variables that the bank (and us) can use to predict whether the loan will be paid or defaulted. There are a total of 9 variables we will be analysing. Let's plot them to see the distribution. We will start with StatedMonthlyIncome
+
+```{r}
+p1 <- ggplot(df, aes(x=StatedMonthlyIncome)) + 
+  geom_histogram(binwidth =1000) + 
+  coord_cartesian(xlim=c(min(df$StatedMonthlyIncome), quantile(df$StatedMonthlyIncome, .99)))
+
+p2 <- ggplot(df, aes(x=StatedMonthlyIncome)) + 
+  geom_histogram() + 
+  scale_x_log10()
+
+grid.arrange(p1,p2)
+
+#should I try boxplot or summary?
+describe(df$StatedMonthlyIncome)
+#summary(df$StatedMonthlyIncome)
+#colSums(is.na(df)) # counting the number of NAs
+
+```
+
+Stated monthly income has a few outliers. While the top quantile of 95% is $11,945, the maximum value of income is $ 618,500. Due to that I've ommitted the first 1% on the histogram to be better able to analyse it. It is a left skewed distribution, peaking at around $5,000 (the average loan was also $5,000).
+
+Another way of looking at the StatedMonthlyIncome data without the interference of outliers is by plotting the log distribution. The log distribution shows a normal curve, with a peak between $1,000 and $10,000.
+
+Now let's see if these incomes are verifiable and what is the employment status of the loan takers:
+
+```{r}
+p1 <- ggplot(df, aes(x=EmploymentStatus)) + geom_bar()
+p2 <- ggplot(df, aes(x=IncomeVerifiable)) + geom_bar()
+grid.arrange(p1,p2,ncol=2)
+```
+
+Here we look at two variables with categorical distribution, IncomeVerifiable and Employment Status. We can see that most the clients that request loans are employed (Employed, Full-Time or Self-Employed). We also can see that the biggest part of loans are made by a client that has verifiable income.
+
+We can also see how the debt relates to the income:
+
+```{r}
+p1 <- ggplot(df, aes(x=DebtToIncomeRatio)) + 
+  geom_histogram() + 
+  scale_x_continuous(breaks=seq(0,10.01,0.25))
+
+p2 <- ggplot(df, aes(x=DebtToIncomeRatio)) + 
+  geom_histogram() + 
+  scale_x_log10(breaks=seq(0,10.01,0.25))
+
+grid.arrange(p1, p2)
+
+#should I try boxplot or summary?
+describe(df$DebtToIncomeRatio)
+```
+
+Debt to income is a ratio, and given the nature of most of the loans (36 months), any rate above 1 is certainly an outlier (if a loan is equal to more than 1 year income, it would be very difficult to pay the loan in 3 years). The describe confirms that - while there are outliers, more than 95% of the data have a ratio below 0.5.
+
+At the visualization we can see the log10 transformed data fits a normal curve, with its peak at around 0.25. That means the amount of the debt is equivalent to a 3 months salary, and 95% of the loans are less than 6 months salary. Debt to Income Ratio is a approximate ratio of two variables included in the dataset, the loan amount and income.
+
+Next we look at Recommendations and CurrentDelinquencies:
+
+```{r}
+describe(df$Recommendations)
+describe(df$CurrentDelinquencies)
+
+p1 <- ggplot(df, aes(x=Recommendations)) + 
+  geom_histogram() +
+  scale_x_continuous(breaks=seq(0,quantile(df$Recommendations, .99), 1))
+p2 <- ggplot(df, aes(x=CurrentDelinquencies)) + 
+  geom_histogram() + 
+  scale_x_continuous(breaks=seq(0,quantile(df$CurrentDelinquencies, .99), 1))
+grid.arrange(p1,p2)
+
+```
+
+These are continuous variable, but with few ocurrences, so we could decide to use them as discrete variables (use a frequency range, such as More than 10 delinquencies), or as a continuous variable. 
+
+The describe shows us there are outliers. For Recommendations, close to a 100% are between 0 and 5, with 1 loan with 9 recommendations and 2 with 18 recommendations. For CurrentDelinquencies, 95% is below 2, while the max number of delinquencies is 22.
+
+To better visualize them I've trimmed the top 1% percent. In the results we can see the majority (97%) of loans have no recommendations at all. The same way the majority of loan takers have no current delinquencies at the time of the contract. 
+
+From the analysis we can infer that Recommendations is a variable with very little information, that might no be useful in the regression (since 97% have no recommendations and nevertheless 95% were not defaulted), but CurrentDelinquencies may be an indicator of a future default.
+
+Since most of the Recommendations is 0, I will transform it to a yes or no variable instead of a continuous.
+
+```{r}
+df$Recommended <- (df$Recommendations > 0)
+describe(df$Recommended)
+#df <- df %>% select(-Recommendations)
+```
+
+
+InvestmentFromFriendsAmount might be a variable that brings more information than Recommendation, since it is quantifiable. Let's turn to that:
+
+```{r}
+p1 <- ggplot(df, aes(x=InvestmentFromFriendsAmount)) + 
+  geom_histogram(binwidth = 10) + 
+  coord_cartesian(xlim=c(0, quantile(df$InvestmentFromFriendsAmount, .999)))
+
+p2 <- ggplot(df, aes(x=InvestmentFromFriendsAmount)) + 
+  geom_histogram() + 
+  scale_x_log10()
+
+grid.arrange(p1,p2)
+
+#should I try boxplot or summary?
+describe(df$InvestmentFromFriendsAmount)
+```
+
+Here we use the same strategy for StatedMonthlyIncome, plotting the data with no transformation and plotting the data in a log 10 scale. The describe shows us that more than 95% of the loan have no investment from friends. In the few cases there are, the distribution os more or less flat, with a peak at rounded values like $100 and a $1,000. 
+
+Like Recommendations, there is probably little information we can extract from this variable as well. 95% of the loans do not default, and more than 95% of the loans have no investment from friends, meaning the variable has little significance in a lon being defaulted or not.
+
+Finally, let's look at the loan distribution between states:
+
+```{r}
+
+ggplot(df, aes(x=BorrowerState)) + geom_bar()
+
+```
+
+The univariate analysis of borrower states don't tell us mych. Except there is an unusual concentration of loans in the state of California. An hypothesis for that is California being early adopters of new technologies (Prosper is a peer-to-peer lending marketplace, not a regular bank).
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+The original dataset has over 100,000 observations and 81 variables. The subsetted dataset, with only loans that have been Completed or Defaulted, and originated after July 2009, have 20,662 observations. Out of 81 variables, 15 were selected for analysis, which includes continuous and discrete variables. 
+
+### What is/are the main feature(s) of interest in your dataset?
+
+Upon the univariate analysis, we can say the most interesting variable are the informations on the loan (amount and rate) and informations on loan taker income (monthly income, income verifiable, debt to income ratio and employment status), and other informations such as current delinquencies and borrower state. 
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+Current delinquencies and borrower state are relevant information that may or may not be correlated with a debt being defaulted or not.
+
+### Did you create any new variables from existing variables in the dataset?
+
+Since more than 97% of the loans had 0 recommendations, I have transformed Recommendations variable, which is originally numerical, into a binary Yes/No variable called Recommended. 
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+Yes. The variables related to dollar amount suche as StatedMonthlyIncome, DebtToIncomeRatio (ratio of two dollar amount variables) and LoanOriginalAmount are best represented in a log10 scale, fitting a normal curve.
+
+# Bivariate Plots Section
+
+I will start the bivariate analysis by plotting score against rate, to see how they are related
+
+```{r echo=FALSE, Bivariate_Plots}
+ggplot(df, aes(x=ProsperRating..Alpha., y=ProsperScore)) +
+    geom_jitter(alpha=.1, size=2)
+```
+
+Scores and Rating seem to be highly correlated. Given this fact, I will use only score for further analysis, as using both will only add unnecessary complexity.
+
+Let's see how the score relates to a loan being defaulted or not
+
+```{r}
+ggplot(df, aes(y=ProsperScore, x=LoanStatus)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1))
+```
+
+Scores are certainly related to a loan being defaulted or not, which means they have some accuracy in their predictions But the difference is not considerable, just 1 point in the average. The observations of loans defaulted have a IQR lower and upper bounder of 4 and 7, while for completed are between 5 and 8.
+
+Let's analyse how the other variables relates to score and see which ones we can use to predict the score. We will start with the loan main characteristics, its rate, amount, and term.  I am using with very low alpha values, since the huge number of observations is causing overplotting in the scatterplots.:
+
+```{r}
+#Amount
+ggplot(df, aes(x=ProsperScore, y=LoanOriginalAmount)) + 
+  geom_jitter(alpha=.1, size=2) + 
+  coord_cartesian(ylim=c(0,quantile(df$LoanOriginalAmount,.99))) + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth()
+with(df, cor.test(ProsperScore, LoanOriginalAmount, method='pearson'))
+
+```
+
+Higher amount loans seems to have a higher score up untill score 8, but there is an odd behavior at score 9 and 10. A correlation score of 0.12 indicates they are slightly correlated, so we should pay attention to this variable.
+
+
+```{r}
+#Rate
+ggplot(df, aes(x=ProsperScore, y=BorrowerRate)) + 
+  geom_jitter(alpha=.1, size=2, color='goldenrod3') + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth()
+with(df, cor.test(ProsperScore, LoanOriginalAmount, method='pearson'))
+
+```
+
+As expected, there is a clear correlation between the Rate and Score. Rate is nothing more than the reward of the risk taken by the bank, hence rate is directly correlated with the loan's evaluated score ( in this case we know the correlation is a causation, score causes effect on rate).
+
+```{r}
+#Term
+#turn Term into a categorical value.
+df$Term <- cut(df$Term, c(0,20,40,70), labels=c('12','36','60'))
+describe(df$Term)
+
+#plot as categorical
+ggplot(df, aes(x=Term, y=ProsperScore)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1))
+
+```
+
+There is no difference between 12 and 36, but there is a difference between 60 months loans and 12/36 months loans - long term loans have an average score 2 points lower than short term loans. We can convert these to a new variable that states whether it is a long term loan or not, and better represent the difference, as shown below:
+
+```{r}
+df$LongTermLoan <- FALSE
+df$LongTermLoan[df$Term=='60'] <- TRUE
+describe(df$LongTermLoan)
+```
+
+Moving on to current delinquencies:
+
+```{r}
+ggplot(df, aes(x=ProsperScore, y=CurrentDelinquencies)) + 
+  geom_jitter(alpha=.1, size=2) + 
+  coord_cartesian(ylim=c(0,quantile(df$CurrentDelinquencies,.99))) + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth()
+
+with(df, cor.test(ProsperScore, CurrentDelinquencies, method='pearson'))
+```
+
+There seems to be a relationship although not very clear, between score and current delinquencies. Scores 9 and 10 have less current delinquencies than lower scores. The correlation test shows us there is a negative -.13 correlation, meaning the scores increase as the current delinquencies decrease, which is expected.
+
+Let's see how the score changes according to DebtIncomeRatio (in the univariate analysis we have seen debt to income ratio above 1 are outliers, hence I'm limiting the y axis to be between 0 and 1):
+
+```{r}
+ggplot(df, aes(x=ProsperScore, y=DebtToIncomeRatio)) + 
+  geom_jitter(alpha=.1, size=2) + 
+  coord_cartesian(ylim=c(0,1)) + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth()
+
+
+with(df, cor.test(ProsperScore, DebtToIncomeRatio, method='pearson'))
+```
+
+Here again we see a negative correlation of -.17, which is somewhat significant. The score increases as the debt to income ratio decreases, which is clear also in the scatterplot. The smoothed line shows the correlation.
+
+Next we will look at the relationship between score and EmploymentStatus using a boxplot, since Employment Status is a categorical value.
+
+```{r}
+ggplot(df, aes(x=EmploymentStatus, y=ProsperScore)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1))
+```
+
+Here we can see that loan takers which defined themselves as emploted Full-time, Part-time or Retired have a biggest chance of getting a high score in their evalution, in comparison to loan takers which just defined as 'Employed' (not specified how many hours), 'Self-Employed', 'Not-Employed' or 'Other'.
+
+It is just the status that matter, or also how much you earn? Let's look at the relationship between monthly income (removing the top 1% for outliers) and score
+
+```{r}
+ggplot(df, aes(x=ProsperScore, y=StatedMonthlyIncome)) + 
+  geom_jitter(alpha=.1, size=2) + 
+  coord_cartesian(ylim=c(0,quantile(df$StatedMonthlyIncome, .99))) + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth()
+
+with(df, cor.test(ProsperScore, StatedMonthlyIncome, method='pearson'))
+```
+
+At first glance there is not a very clear relationship. Adding a smoothed trend line to the graph we can confirm the trend is slightly turned upwards, but with very little impact - correlation test gives us a 0.05 score.
+
+It makes more sense to analyse income as in relation to the loan amount, so let's plot that:
+
+```{r}
+df <- transform(df, IncomeOverLoan = StatedMonthlyIncome/LoanOriginalAmount )
+ggplot(df, aes(x=ProsperScore, y=IncomeOverLoan)) + 
+  geom_jitter(alpha=.1, size=2) + 
+  coord_cartesian(ylim=c(0,quantile(df$IncomeOverLoan, .99))) + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth()
+with(df, cor.test(ProsperScore, IncomeOverLoan, method='pearson'))
+#df <- df %>% select(-IncomeOverLoan)
+```
+
+Income over Loan has a very low correlation, and only seem to be of any relevance in the scores 9 and 10. Since we already have the Debt to Income Ratio, I will not be using this variable in the predictive model. Next we will look at if knowing the income is verifiable has any effect on the score:
+
+```{r}
+ggplot(df, aes(x=IncomeVerifiable, y=ProsperScore)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1))
+```
+
+As we can see in the visualization, loans (takers) with verifiable income have an increase of approximate 2 in the score in relation to the loan takes without verifiable income.
+
+What about recommendations? Does it impact the score somehow? Here we will use the categorical variable created for the analysis, Recommended, which ignores the amount of recommendations.
+
+```{r}
+ggplot(df, aes(x=Recommended, y=ProsperScore)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1))
+```
+
+The visualization shows there is a very little impact, hence it is a variable we can ignore for the linear regression. Let's analyse InvestmentFromFriendsAmount, which also reflects the support network of the loan taker:
+
+```{r}
+ggplot(df, aes(x=ProsperScore, y=InvestmentFromFriendsAmount)) + 
+  geom_jitter(alpha=.1, size=2) + 
+  coord_cartesian(ylim=c(0,quantile(df$InvestmentFromFriendsAmount, .99))) + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth()
+
+with(df, cor.test(ProsperScore, InvestmentFromFriendsAmount, method='pearson'))
+```
+
+There is not a clear pattern. We will convert to a binary value, similar to recommended, to see if a patter emerges:
+
+```{r}
+df$FriendsInvestment <- FALSE
+df$FriendsInvestment[df$InvestmentFromFriendsAmount>0] <- TRUE
+describe(df$FriendsInvestment)
+ggplot(df, aes(x=FriendsInvestment, y=ProsperScore)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1))
+```
+
+Now the relationship is more visible. Loans which have investment from friends have an average score 1 point higher than loans without investment from friends.
+
+Finally, let's look at the state:
+
+```{r}
+ggplot(df, aes(x=BorrowerState, y=ProsperScore)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1))
+```
+
+Most of the states have loans ranging from 1 to 10. The average scores are situaated between 6 and 8, with only 3 states with an average score of 8, DC, DE and HI. The visualization shows there is some influence between state and score, at least in this dataset.
+
+Let's wrap up this section by looking at the correlation between all the above mentioned variables and see if we can find an interesting unexpected pattern:
+
+```{r}
+#themse_set(theme_minimal(20))
+set.seed(999)
+df_subset <- subset(df, select=c(ProsperScore, LoanOriginalAmount, BorrowerRate, LongTermLoan, CurrentDelinquencies, DebtToIncomeRatio, FriendsInvestment)) 
+#only relevant columns 
+#missing BorrowerState and EmploymentStatus, avoided due to large number of categories 
+ggpairs(df_subset[sample.int(nrow(df_subset), 2000),]) 
+#only 2000 observations to speed up computation # too slow, removed
+```
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+Our feature of interest is score. Almost all the variables analysed have some impact on score. Employment status varies up to 3 points (varies the average between the different categories). States varies up to 2 points, also does LongTermLoan and IncomeVerifiable. FriendsInvestment varies up to 1 point.  DebtToIncomeRatio and CurrentDelinquencies have a high correlation with Score, 0.17 and 0.11 respectively, and varies significantly across the range of scores.
+
+There are variables that can shows very little correlation with score, and can be discarded for the regression. One of them is Recommended - 97% of the loans have no recommendations, and the bivariate analysis shows there is very little impact on the result. StatedMontlyIncome and its variation StatedMonthlyIncome/LoanOriginalAmount have shown no significance correlation with Score, and may generate unnecessary noise for the regression.
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+Not any that would draw attention, most of variables seem either related to score or not related at all.
+
+### What was the strongest relationship you found?
+
+The strongest relationship is between Score and DebtToIncomeRatio, with a correlation score of 0.17. On the category side, two binary valuables shows a strong relationship with score, LongTermLoan and IncomeVerifiable.
+
+# Multivariate Plots Section
+
+Let's look at our strongest variables together. First we will see how Employment Status combined with IncomeVerifiable affects score:
+
+```{r}
+ggplot(df, aes(x=EmploymentStatus, y=ProsperScore)) + 
+  geom_boxplot() + 
+  scale_y_continuous(breaks=seq(0,10,1)) +
+  facet_wrap(~IncomeVerifiable)
+
+```
+
+Analysed side by side we can see that for Prosper being employed is not enough to guarantee a high score, one would also need to verify its income. The distribution between categories also changes - Not employed and Retired have similar scores to FullTime when the income has been verified.
+
+Let's change the focus from score to BorrowerRate, which are highly correlated variables, and see how other variables impact the BorrowerRate. Given the same DebtToIncomeRatio, do longer term loans have higher or lower borrowing rates?
+
+```{r}
+ggplot(df, aes(x=BorrowerRate, y=DebtToIncomeRatio)) + 
+  geom_jitter(alpha=.4, size=2, aes(color=LongTermLoan)) + 
+  coord_cartesian(ylim=c(0,1)) + 
+  scale_color_manual(values=c("#EEE000", "#394BA0"))
+```
+
+An interesting pattern emerges from this visualization. We can see that long term loans with the same DebtToIncomeRatio have a higher borrower rate. It is particularly interesting because the financial market usually works different... long term loans, such as mortgages, have lower rates, while short term loans such as working capital usually have a higher rate.
+
+Let's also analyse these variables against amount.
+
+```{r}
+ggplot(df, aes(x=BorrowerRate, y=LoanOriginalAmount)) + 
+  geom_jitter(alpha=.4, size=2, aes(color=LongTermLoan)) + 
+  scale_y_log10() +
+  scale_color_manual(values=c("#EEE000", "#394BA0"))
+```
+
+I am using a log10 transformation scale to better visualize the distribution on y axis. Here we can confirm the strange pattern we've seen before. Long term loans, with higher amounts, have higher borrower rates.
+
+Let's use the same pattern to look at the impact of IncomeVerifiable at the BorrowerRate
+
+```{r}
+#can not analyse against debtToIncome...most the observations with IncomeVerifiable False has DebtToIncome null
+
+ggplot(df, aes(x=BorrowerRate, y=LoanOriginalAmount)) + 
+  geom_jitter(alpha=.4, size=2, aes(color=IncomeVerifiable)) + 
+  scale_y_log10() +
+  scale_color_manual(values=c("#394BA0", "#EEE000"))
+
+```
+
+Here again we can confirm that given the same loan amount, a loan taker without verifiable income has a higher borrower rate, confirming the correlation between verifiable income and borrower rate/score.
+
+My proposal is for us to try and predict the score using the variables we selected from the univariate, bivariate and multivariate analysis. 
+
+We will add the selected variables one by one, and see how they impact the R2 value. In the regression we will not use BorrowerRate, since they are defined from the score, and ProsperRating..Alpha, which is similar to scores. All other relevant variables will be used:
+
+```{r}
+#linear model - regression
+m1 <- lm(ProsperScore~LoanOriginalAmount,data=df) 
+m2 <- update(m1, ~ . + LongTermLoan)
+m3 <- update(m2, ~ . + DebtToIncomeRatio)
+m4 <- update(m3, ~ . + CurrentDelinquencies)
+m5 <- update(m4, ~ . + EmploymentStatus)
+m6 <- update(m5, ~ . + IncomeVerifiable)
+m7 <- update(m6, ~ . + FriendsInvestment)
+m8 <- update(m7, ~ . + BorrowerState)
+mtable(m1,m2,m3,m4,m5,m6,m7,m8, sdigits=2)
+```
+
+As seen, adding dimensions increased our linear regression model from an R-squared of 0.02 to an R-squared of 0.15, which means the final model only explains about 15% of the variance in scores. That is not a good model, and we would need to use a lot more variables to achieve a reasonable value. Nevertheless we are in the right path, as adding each of the variables increased R-squared a little bit.
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+Most of features are either correlated or not. Two features that are stronger combined is EmploymentStatus and IncomeVerifiable, meaning it is not enough to report employment status to have a higher score, it also needs to be confirmed
+
+### Were there any interesting or surprising interactions between features?
+
+There was an interesting pattern I have perceived and wanted to analyse further, that is how longer term loans, with more amount, have higher borrower rates. This is unusual, since longer term loans tend to have lower borrowing rates, such as mortgages. I'm assuming longer term loans have more guarantees, as expected, but I can not confirm this is the case since I don't have this variable in my selected dataset. The reason why this pattern emerges might means that guarantees are not an important part of the loan process in Prosper, perhaps not even required.
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+Yes, the idea from the beggining was to try to predict scores with a linear regression model. The final uses 2 features from the loan, amount and term, and 6 features regarding the loan and the loan taker, DebtToIncomeRatio, CurrentDelinquencies, EmploymentStatus, IncomeVerifiable, FriendsInvestment and BorrowerState.
+
+The final R-squared is 0.15. Although it only explains 15% of the variance in the scores dataset, the incremental linear regression shows that each variable added improved the model a little bit, and that we could improve it further by adding more variables that were not selected in this dataset.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+ggplot(df, aes(x=ProsperScore, y=BorrowerRate)) + 
+  geom_jitter(alpha=.1, size=2, color='goldenrod3') + 
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  geom_smooth() + 
+  labs(title="Loan Score vs Borrower Rate", x="Loan Score (1 to 10 scale)", y="Borrower Rate (monthly interest rate)") + 
+  theme(
+  plot.title = element_text(color="black", size=18, face="bold"),
+  axis.title.x = element_text(color="blue", size=14, face="italic"),
+  axis.title.y = element_text(color="red", size=14, face="italic")
+  )
+
+with(df, cor.test(ProsperScore, BorrowerRate, method='pearson'))
+```
+
+### Description One
+Bivariate analysis between BorrowerRate and Score, showing how they are correlated (in this case correlation means causation, as borrower rate is defined by the loan score amongst other factors. As the score increases, the borrower rate decreases. 
+
+We are interested here in seeing if the rate varies according to the score, as it is expected, or if there are other factors driving the rate. From the visualization we can infer that the loan score has a high effect on the score, meaning it is used to determine the rate of the customer and hence reflects accurately the customer evaluation made by Prosper. As the correlation shows, the variance of the loan score can explain more than 70% of the variance in the borrower rate.
+
+The visualization also shows the relationship is non-linear. Scores from 1 to 5 have an approximate borrower rate, close to 0.3, and there is a sudden decrease from 5 to 10, reaching below 0.1.
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+ggplot(df, aes(x=EmploymentStatus, y=ProsperScore)) + 
+  geom_boxplot(alpha=.4) + 
+  geom_jitter(alpha=.04) +
+  scale_y_continuous(breaks=seq(0,10,1)) +
+  facet_wrap(~IncomeVerifiable, labeller = as_labeller(c('False'='Income not verified', 
+                                                         'True'='Income verified'))) + 
+  labs(title="Employment Status vs Loan Score", x="Employment Status", 
+       y="Loan Score (1 to 10 scale)") + 
+  theme(
+  plot.title = element_text(color="black", size=18, face="bold"),
+  axis.title.x = element_text(color="blue", size=14, face="italic"),
+  axis.title.y = element_text(color="red", size=14, face="italic")
+  )    
+
+```
+
+### Description Two
+In this visualization we analyse one variable deeper to see how it affect the scores, Income Verifiable. We can see, from the visualization, how the fact of the income being verifiable or not affects the score, given the same employment status. In almost all categories, including Non-Employed, having a verifiable income have guaranteed a rate 1 or 2 points higher than loan takers without verifiable income. This means that Prosper takes into consideration not only the declared status but also what the loan taker can prove. 
+
+Another visible aspect is that while the mean score per employment status differ if the income is not verified, they do not differ as much if the income is verified. In the second category, loan takers declared as Full Time, Not Employed, Part-Time or even Retired have been given, on average, the same loan score. 
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+ggplot(df, aes(x=BorrowerRate, y=DebtToIncomeRatio)) + 
+  geom_jitter(alpha=.4, size=2, aes(color=LongTermLoan)) + 
+  coord_cartesian(ylim=c(0,1)) + 
+  scale_color_manual(values=c("#EEE000", "#394BA0")) + 
+  labs(title="Borrower Rate vs Debt to Income Ratio", x="Borrower Rate (monthly interest rate)", 
+       y="Debt to Income Ratio", color="Long Term Loan?") + 
+  theme(
+  plot.title = element_text(color="black", size=18, face="bold"),
+  axis.title.x = element_text(color="blue", size=14, face="italic"),
+  axis.title.y = element_text(color="red", size=14, face="italic"),
+  legend.title = element_text(color="purple", size=14)
+  )    
+  
+with(df, cor.test(ProsperScore, DebtToIncomeRatio, method='pearson'))
+
+```
+
+The relationship between borrower rate and debt to income ratio is depicted in the visualization, splitting the observations between loans which are long term or short/medium term. The visualization shows an unexpected pattern, which has been hinted in previous visualizations: long term loans have a higher borrower rate, given the same debt to income ratio (debt to income ratio is the variable that mostly affects the score, with a -.17 correlation). 
+
+The pattern is unexpected because long term loans tend to have a lower borrower rate, since they usually have some kind of guarantee attached, such as mortgages on houses and cars, as opposed to short term loans which are cash flow oriented. We can assume that, at Prosper, long term loans (60 months) and short(12) and medium term(36) loans are treated equal, probably with none of them requiring a guarantee from the loan taker.
+
+### Description Three
+
+Relationship between Borrower Rate, Debt To Income Ration and Long Term Loan. The visualization shows the purple dots right centered, while the yellow dots are distributed more evenly. In other words, given the same Debt To Income Ratio, the borrower rate will be higher if the loan is long term.
+
+# Reflection
+
+Along this work I have conducted a very thorough analysis of the given dataset. Unfortunately, given the timeframe, I could not work with all variables. But a lot of interesting patterns emerged from the analysis.
+
+With the variables selected, I tried to fit the most strong ones into a linear regression model to try to replicate Prosper's scoring method, but while the results are correlated with the Score, they are far from accurate, with an R2 of 0.15. We would need much more variables to get closer to the actual result.
+
+I have tried to apply all knowledge from the course, using different visualization styles as the variable types required, and wrangling the data when necessary (not much wrangling was necessary since I'm using a curated dataset from Udacity)
+
+I am very interested to further pursuing this analysis and see how much closer to the actual score I can get, given all variables, with other machine learning methods. And even see if I can come up with a more effective scoring method, based on the available data, that performs better than ProsperScore at predicting if a loan is going to be defaulted or not. 
+

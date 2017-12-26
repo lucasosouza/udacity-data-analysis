@@ -1,0 +1,106 @@
+---
+title: "Longitudinal analysis of aid given by developed countries"
+author: "Lucas O. Souza"
+date: "21 de dezembro de 2015"
+output: html_document
+---
+
+```{r, echo=FALSE}
+hook_plot <- knit_hooks$get('plot')
+knit_hooks$set(plot=function(x, options) {
+    if (!is.null(options$pelican.publish) && options$pelican.publish) {
+        x <- substring(x, 11)
+    }
+    hook_plot(x, options)
+})
+opts_chunk$set(pelican.publish=TRUE, fig.path='../output/figure/', fig.width=10, fig.height=5, dpi=300)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+#load libraries
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+#import data structure
+aid <- read.csv('/Users/lucasosouza/Desktop/AI/Udacity/R-EDA/lesson3/gapminderData.csv', sep=';')
+```
+
+In this document, we analyse the aid given as percentage of the Gross National Income (GNI), by developed countries, during the years of 1960 and 2008.
+
+A total of 15 countries have been analysed, all of which had available data in the given period. The dataset for this analysis is provided by Gapminder[http://www.gapminder.org/data/]. 
+
+At first, we will look at boxplot of the 15 countries side by side, in alphabetical order, so we can visualize the distribution of the aid/GNI percentage over the years:
+
+```{r, message=FALSE, warning=FALSE}
+# removing na values
+aid2 <- na.omit(aid)
+
+#fix headers
+aid2 <- setNames(aid2, c('country', substr(names(aid2[2:50]), 2, 5)))
+
+#transform
+aid2  <- gather(aid2, 'year', 'coef', 2:50)
+#aid2 <- mutate(aid2, year = substr(year, 2, 5))
+#aid2 <- mutate(aid2, year = as.numeric(year))
+#aid2 <- setNames(aid2, c('country', 'year', 'coef'))
+
+#levels(aid2$year)
+#str(aid2)
+#tail(aid2)
+
+#plot
+ggplot(data=aid2, aes(x=country, y=coef)) + 
+  geom_boxplot() + 
+  coord_cartesian(ylim=c(0,1.5))
+
+```
+
+From the plot, we can see there are 3 countries below the 0.25% line: United States, Austria and Italy. On the other hand, a group of 4 countries emerging above the 0.75% line: Denmark, Netherlands, Norway and Sweden. 
+
+France lags just behind, with an average around 0.5% and a lot of outliers over 1.25%. This pattern will be easier to see on the longitudinal analysis, plotted below:
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(data=aid2, aes(year,coef)) + 
+  geom_smooth(aes(group=country, color=country), fill=NA)
+```
+
+The longitudinal analysis (using a smoothed line) tells a much better history of the evolution of aid given by developed countries. From 1960 to 1969, France stands with the highest aid/GNI percentage. That coincides with the political proeminence of the Union for the New Republic, Charles de Gaulle political party, who pursued a policy of sovereignty and independence, placing France at the center of the world once again.
+
+Around the same time, during the 70s, we see the emergence of the European welfare states, that in a matter of a few years rises above all other countries. The European social model commited to a reduction of inequality both within the country and between nations, and its policy of aid to foreign countries reflects that spirit. From 1976 till 2008, Denmark, Sweden, Norway and Netherlands show the highest rate of aid given by national gross income.
+
+Let's take a step back and look at the overall picture. How did the aid/GNI percentage evolved from 1960 and 2008 in the world? If the 15 countries can be considered a sample, we can plot the distribution by year and analyse their distribution over the years.
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(data=aid2, aes(x=year, y=coef)) + 
+  geom_boxplot() + 
+  coord_cartesian(ylim=c(0,1.5))
+```
+
+The boxplots shows an increase from 1960 to 1987 and a sharp decrease from 1987 onwards (black monday?). In 2003 the aid/GNI percentage slowly starts to regain growth.
+
+Let's look at the average only, in a smoothed line, to see if this pattern confirms.
+
+```{r, message=FALSE, warning=FALSE}
+#reset mutations
+aid2 <- na.omit(aid)
+
+#summarizing and reshaping, using tidyr and dplyr
+aidSummary <- summarize_each(aid2, funs(mean))
+aidFinal <- gather(aidSummary, 'year', 'coef', 2:50)
+aidFinal <- aidFinal[,2:3]
+aidFinal <- mutate(aidFinal, year = substr(year, 2, 5))
+aidFinal <- mutate(aidFinal, year = as.numeric(year))
+
+#plot
+qplot(data=aidFinal, x=year, y=coef) + 
+  geom_point() + 
+  geom_smooth()
+```
+
+The same pattern shows, with more clarity. The average comes from 0.33% in 1960 to 0.53% in 1986, and then decreases to around 0.46% at 2003. 
+
+Unfortunately, the current percentage, as of 2008, has still not regained its peak, and there is no clear trend it will in the near future. The most recent data shows a high fluctuation, and we can expect that post financial crisis, 2009-2014, the aid from developing countries have reduced instead of increased.
+
+
+

@@ -1,0 +1,4 @@
+References used:
+- classes material
+- Quick-R documentation
+- stack overflow
